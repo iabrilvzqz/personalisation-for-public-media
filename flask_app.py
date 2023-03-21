@@ -1,14 +1,14 @@
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
-from flask_cors import CORS
+#from flask_cors import CORS
 import os
 
 from mongo import new_interaction, find_interaction
 
 app = Flask(__name__)
-cors = CORS(app)
+#cors = CORS(app)
 
-client = MongoClient("mongodb+srv://test:test@rs.qug52es.mongodb.net/?retryWrites=true&w=majority")
+client = MongoClient("mongodb+srv://test:test@rs.qug52es.mongodb.net/?retryWrites=true&w=majority", connectTimeoutMS=30000, socketTimeoutMS=None, connect=False, maxPoolsize=1)
 db = client.get_database('RS')
 
 serindipity_test = {
