@@ -4,6 +4,7 @@ from pymongo import MongoClient
 import os
 
 from mongo import new_interaction, find_interaction, find_interactions_history
+from recommendation_system import get_recommendations
 
 app = Flask(__name__)
 #cors = CORS(app)
@@ -93,7 +94,8 @@ def serve_static(filename):
 @app.route("/diversity", methods=["GET", "POST"])
 def diversity_recommendations():
   json_data = request.json
-  return jsonify(diversity_test)
+  results = get_recommendations(db, json_data['user_id'])
+  return jsonify(results)
 
 @app.route("/serindipity", methods=["GET", "POST"])
 def serindipity_recommendations():
