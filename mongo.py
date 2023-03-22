@@ -1,4 +1,5 @@
-import pymongo 
+from datetime import datetime
+import pymongo
 
 def create_collection(db):
     collection_parameters = { "capped" : False}
@@ -6,6 +7,11 @@ def create_collection(db):
 
 
 def new_interaction(db, json_data):
+    # datetime object containing current date and time
+    now = datetime.now()
+    # dd/mm/YY H:M:S
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+
     #Checking records of a collection
     records = db.interactions
 
@@ -14,7 +20,8 @@ def new_interaction(db, json_data):
         "user_id": json_data["user_id"],
         "title": json_data["title"],
         "type": json_data["type"],
-        "value": json_data["value"] }
+        "value": json_data["value"],
+        "time":  dt_string}
 
     records.insert_one(new_record)
 
@@ -33,3 +40,17 @@ def find_interaction(db, json_data):
     if result: result.pop('_id', None)
     return result if result else {'null': None}
 
+
+def find_interactions_history(db, json_data):
+    # Get collection
+    records = db.interactions
+
+    # Find filtering
+    result = records.find({ "user_id": json_data["user_id"]}, sort=[('_id', pymongo.DESCENDING)]).limit(50)
+
+    final_result = []
+    for res in result:
+        res.pop('_id', None)
+        final_result.append(res)
+    
+    return final_result

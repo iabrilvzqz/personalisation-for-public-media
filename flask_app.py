@@ -3,7 +3,7 @@ from pymongo import MongoClient
 #from flask_cors import CORS
 import os
 
-from mongo import new_interaction, find_interaction
+from mongo import new_interaction, find_interaction, find_interactions_history
 
 app = Flask(__name__)
 #cors = CORS(app)
@@ -112,6 +112,12 @@ def get_interaction():
   json_data = request.json
   result = find_interaction(db, json_data)
   return jsonify(dict(result))
+
+@app.route("/get_interactions_history", methods=["GET", "POST"])
+def get_interactions_history():
+  json_data = request.json
+  result = find_interactions_history(db, json_data)
+  return jsonify(result)
 
 if __name__=="__main__":
     app.run(debug=True)
