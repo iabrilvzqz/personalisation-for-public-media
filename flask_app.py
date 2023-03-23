@@ -3,7 +3,7 @@ from pymongo import MongoClient
 #from flask_cors import CORS
 import os
 
-from mongo import new_interaction, find_interaction, find_interactions_history
+from mongo import new_interaction, find_interaction, find_interactions_history, save_diversity_level, find_diversity_level
 from recommendation_system import get_recommendations
 
 app = Flask(__name__)
@@ -114,6 +114,18 @@ def get_interaction():
   json_data = request.json
   result = find_interaction(db, json_data)
   return jsonify(dict(result))
+
+@app.route("/update_diversity_level", methods=["GET", "POST"])
+def update_diversity_level():
+  json_data = request.json
+  result = save_diversity_level(db, json_data)
+  return jsonify({"created": True})
+
+@app.route("/get_diversity_level", methods=["GET", "POST"])
+def get_diversity_level():
+  json_data = request.json
+  result = find_diversity_level(db, json_data)
+  return jsonify({"value": result})
 
 @app.route("/get_interactions_history", methods=["GET", "POST"])
 def get_interactions_history():

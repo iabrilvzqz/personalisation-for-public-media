@@ -27,6 +27,23 @@ def new_interaction(db, json_data):
 
     return True
 
+def save_diversity_level(db, json_data):
+    #Checking records of a collection
+    records = db.slider_value
+    records.update_one({"user_id": json_data["user_id"]}, {"$set": {"value": json_data["value"]}}, upsert=True)
+
+    return True
+
+
+def find_diversity_level(db, json_data):
+    #Checking records of a collection
+    records = db.slider_value
+
+    #Find filtering
+    result = records.find_one({ "user_id": json_data["user_id"]})
+    
+    return result["value"] if result else None
+
 
 def find_interaction(db, json_data):
     # Get collection
