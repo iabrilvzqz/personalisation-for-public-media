@@ -338,6 +338,26 @@ def get_top_ten_recommendation():
   return normal_recommendations
 
 
+def main_track_format(df):
+  recs = []
+  for _, row in df.iterrows():
+    dic = {"image": row["img_link"],
+      "title": row["Name"],
+      "description":  row["Description"],
+      "tags": row["Genres"],
+      "category": row["Type"],
+      "large_image": row["large_image"]}
+    recs.append(dic)
+  return recs
 
-  
+def main_recommendations_by_npo():
+  names = ["downton abbey", "sanditon", "bloedbroeders", "project rembrandt", "gevoel voor tumor"]
+  images = ["downton_abbey.jpeg", "sanditon.jpeg", "bloedbroeders.jpeg", "project_rembrandt.png", "gevoel_voor_tumor.png"]
+
+  df = pd.DataFrame(list(zip(names, images)), columns=["Name", "large_image"])
+  df = df.merge(content, how = "inner", on = "Name")
+
+  normal_recommendations = main_track_format(df.sample())
+
+  return normal_recommendations
 

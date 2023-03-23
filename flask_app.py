@@ -3,7 +3,7 @@ from flask_cors import CORS
 import os
 
 from mongo import new_interaction, find_interaction, find_interactions_history, save_diversity_level, find_diversity_level
-from recommendation_system import get_recommendations_by_interactions, get_personalised_recommendations, get_serindipity_recommendation, get_top_ten_recommendation
+from recommendation_system import main_recommendations_by_npo, get_recommendations_by_interactions, get_personalised_recommendations, get_serindipity_recommendation, get_top_ten_recommendation
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -40,6 +40,11 @@ def get_top_ten():
 def serindipity_recommendations():
   json_data = request.json
   results = get_serindipity_recommendation(json_data['user_id'])
+  return jsonify(results)
+
+@app.route("/npo_recommendation", methods=["GET", "POST"])
+def npo_recommendation():
+  results = main_recommendations_by_npo()
   return jsonify(results)
 
 @app.route("/create_interaction", methods=["GET", "POST"])
