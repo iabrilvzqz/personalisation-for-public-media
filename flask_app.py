@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify
-#from flask_cors import CORS
+from flask_cors import CORS
 import os
 
 from mongo import new_interaction, find_interaction, find_interactions_history, save_diversity_level, find_diversity_level
-from recommendation_system import get_recommendations, get_serindipity_recommendation
+from recommendation_system import get_recommendations_by_interactions, get_personalised_recommendations, get_serindipity_recommendation, get_top_ten_recommendation
 
 app = Flask(__name__)
-#cors = CORS(app)
+cors = CORS(app)
 
 @app.route('/')
 def serve_index():
@@ -19,13 +19,24 @@ def serve_static(filename):
   else:
     return app.send_static_file('index.html')
 
-@app.route("/diversity", methods=["GET", "POST"])
-def diversity_recommendations():
+@app.route("/personalised_recommendations", methods=["GET", "POST"])
+def personalised_recommendations():
   json_data = request.json
-  results = get_recommendations(json_data['user_id'])
+  results = get_personalised_recommendations(json_data['user_id'])
   return jsonify(results)
 
-@app.route("/serindipity", methods=["GET", "POST"])
+@app.route("/similar_recommendations", methods=["GET", "POST"])
+def similar_recommendations():
+  json_data = request.json
+  results = get_recommendations_by_interactions(json_data['user_id'])
+  return jsonify(results)
+
+@app.route("/top_ten_recommendations", methods=["GET"])
+def get_top_ten():
+  results = get_top_ten_recommendation()
+  return jsonify(results)
+
+@app.route("/serindipity_recommendations", methods=["GET", "POST"])
 def serindipity_recommendations():
   json_data = request.json
   results = get_serindipity_recommendation(json_data['user_id'])

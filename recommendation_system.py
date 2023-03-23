@@ -149,7 +149,7 @@ def content_based_filter(colab_recomend_df, user_history_df, positive_df):
   return colab_recomend_df.sort_values(ranking, ascending = False).reset_index(drop = True)
 
 
-def get_recommendations(id):
+def get_personalised_recommendations(id):
   # Finding interactions by user id
   interactions = list(find_all_interactions_history({"user_id": id}))
 
@@ -238,4 +238,106 @@ def get_recommendations(id):
 
 
 def get_serindipity_recommendation(id):
-  return get_recommendations(id)[-1]
+  return get_personalised_recommendations(id)[-1]
+
+
+def get_recommendations_by_interactions(id):
+  # Finding interactions by user id
+  interactions = list(find_all_interactions_history({"user_id": id}))
+
+  # Preparing DataFrame
+  df = pd.pivot_table(full_data, index = "user_id", columns = "Name")
+  df = df.fillna(0)
+
+  # View dataset
+  view = df["view"].reset_index(drop = True)
+
+  # Get lists of shows viewed
+  cols_with_1 = [col for col in view.columns if view[col].any() == 1]
+  cols_user = set(cols_with_1)
+  
+  # Get last show view if there is not data in db
+  last_seen = random.sample(cols_user, 1)
+
+  # Searching for last seen in db
+  # Transform result to DataFrame
+  
+  if interactions:
+    interactions = pd.DataFrame(interactions).drop("_id", axis = 1) 
+    interactions = interactions.merge(content, left_on = 'title', right_on = 'Name')
+    last = interactions.loc[interactions["type"] == "play"].sort_values(by = "time", ascending = False)
+    
+    if len(last) > 0:
+      last.reset_index(inplace =True, drop=True)
+      last_seen = last.loc[0,"title"] # Variable with element name
+
+  # Start content similarity based recom
+  last_df = pd.DataFrame(data={'Name': [last_seen]}).merge(content, how = "inner", on = "Name")
+  
+  # Rank by most common tag in the user history
+  tags_list= []
+  # Count and add tags in views
+  tags_list = tag_counter(tags_list,last_df["Genres"])
+  dic = dict(Counter(tags_list))
+  top_tags = pd.DataFrame(dic.items()).sort_values(by=1, ascending = False).reset_index(drop=True)
+  con = content.copy()
+  ranking = []
+
+  for index, row in top_tags.iterrows():
+    # Make True/False columns of all tags to rank them
+    con["contains_top{}".format(index)] = con["Genres"].str.contains(row[0])
+    ranking.append("contains_top{}".format(index))
+  
+  sel = con.sort_values(ranking, ascending = False).reset_index(drop=True)
+  
+  # Removing same item
+  sel = sel.loc[sel["Name"]!= last_seen]
+  view_recomendations = track_format(sel)
+
+  div = find_diversity_level({"user_id": id})
+
+  # Low diversity: List is not modified
+  if div == 0:
+    view_recomendations = view_recomendations[:15]
+  
+  # Medium diversity: Mix between random and ordered list
+  elif div == 0.5:
+    view_recomendations = view_recomendations[35:50]
+  
+  # High diversity: Order list randomly
+  elif div == 1:
+    view_recomendations = view_recomendations[100:115]
+
+  return {"recommendations": view_recomendations, "item": last_seen}
+
+
+def get_top_ten_recommendation():
+  # Preparing DataFrame
+  df = full_data.copy()
+
+  # Order content by number of views and rating
+  grouped_df = df.groupby('Name').agg({'view': ['sum'], 'rating': ['mean']})
+  C = grouped_df[('rating', 'mean')].mean()
+  m = grouped_df[('view', 'sum')].quantile(0.70)
+
+  weights = []
+
+  for _, row in grouped_df.iterrows():
+    R = row[('rating', 'mean')]
+    v = row[('view', 'sum')]
+    weights.append( (R + C) / (v + m) )
+    
+  grouped_df["weight"] = weights
+
+  grouped_df = grouped_df.sort_values("weight", ascending=False)
+
+  # Get content information to return recommendations to front
+  grouped_df = grouped_df.merge(content, how = "inner", on = "Name")
+  normal_recommendations = track_format(grouped_df.head(10))
+
+  return normal_recommendations
+
+
+
+  
+
