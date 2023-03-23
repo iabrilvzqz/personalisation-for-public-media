@@ -1,12 +1,10 @@
 from datetime import datetime
 import pymongo
 
-def create_collection(db):
-    collection_parameters = { "capped" : False}
-    phone_collection = db.create_collection("name_collection", **collection_parameters )
+client = pymongo.MongoClient("mongodb+srv://test:test@rs.qug52es.mongodb.net/?retryWrites=true&w=majority", connectTimeoutMS=30000, socketTimeoutMS=None, connect=False, maxPoolsize=1)
+db = client.get_database('RS')
 
-
-def new_interaction(db, json_data):
+def new_interaction(json_data):
     # datetime object containing current date and time
     now = datetime.now()
     # dd/mm/YY H:M:S
@@ -27,7 +25,7 @@ def new_interaction(db, json_data):
 
     return True
 
-def save_diversity_level(db, json_data):
+def save_diversity_level(json_data):
     #Checking records of a collection
     records = db.slider_value
     records.update_one({"user_id": json_data["user_id"]}, {"$set": {"value": json_data["value"]}}, upsert=True)
@@ -35,7 +33,7 @@ def save_diversity_level(db, json_data):
     return True
 
 
-def find_diversity_level(db, json_data):
+def find_diversity_level(json_data):
     #Checking records of a collection
     records = db.slider_value
 
@@ -45,7 +43,7 @@ def find_diversity_level(db, json_data):
     return result["value"] if result else None
 
 
-def find_interaction(db, json_data):
+def find_interaction(json_data):
     # Get collection
     records = db.interactions
 
@@ -58,7 +56,7 @@ def find_interaction(db, json_data):
     return result if result else {'null': None}
 
 
-def find_interactions_history(db, json_data):
+def find_interactions_history(json_data):
     # Get collection
     records = db.interactions
 
@@ -71,3 +69,11 @@ def find_interactions_history(db, json_data):
         final_result.append(res)
     
     return final_result
+
+def find_all_interactions_history(json_data):
+    # Get collection
+    records = db.interactions
+
+    result = records.find({'user_id': json_data["user_id"]})
+
+    return result
