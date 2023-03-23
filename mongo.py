@@ -73,7 +73,5 @@ def find_interactions_history(json_data):
 def find_all_interactions_history(json_data):
     # Get collection
     records = db.interactions
-
     result = records.find({'user_id': json_data["user_id"]})
-
     return result
