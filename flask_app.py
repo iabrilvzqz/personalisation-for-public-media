@@ -3,18 +3,10 @@ from flask import Flask, request, jsonify
 import os
 
 from mongo import new_interaction, find_interaction, find_interactions_history, save_diversity_level, find_diversity_level
-from recommendation_system import get_recommendations
+from recommendation_system import get_recommendations, get_serindipity_recommendation
 
 app = Flask(__name__)
 #cors = CORS(app)
-
-serindipity_test = {
-    "image": "https://m.media-amazon.com/images/M/MV5BMDAxOGNhYjctNWQ2My00MTZjLWFkNWUtNDI3N2FhNWNkZWYyXkEyXkFqcGdeQXVyNjAzNzExNTk@._V1_QL75_UY281_CR5,0,190,281_.jpg",
-    "title": "This is a title",
-    "description": "Lorem ipsum dolor sit amet consectetur, adipisicing elit. Hic, eius laboriosam at est modi veniam quidem voluptatum nemo quas suscipit consequatur delectus ducimus atque, odio, consectetur error corporis consequuntur. Necessitatibus.",
-    "tags": ["Comedy", "Family"],
-    "category": "TV Show"
-}
 
 @app.route('/')
 def serve_index():
@@ -22,7 +14,6 @@ def serve_index():
 
 @app.route('/<path:filename>')
 def serve_static(filename):
-  print(filename)
   if filename != "null" and os.path.isfile(os.path.join(app.static_folder, filename)):
     return app.send_static_file(filename)
   else:
@@ -37,7 +28,8 @@ def diversity_recommendations():
 @app.route("/serindipity", methods=["GET", "POST"])
 def serindipity_recommendations():
   json_data = request.json
-  return jsonify(serindipity_test)
+  results = get_serindipity_recommendation(json_data['user_id'])
+  return jsonify(results)
 
 @app.route("/create_interaction", methods=["GET", "POST"])
 def create_interaction():
