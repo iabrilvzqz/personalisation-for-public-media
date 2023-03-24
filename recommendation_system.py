@@ -12,12 +12,12 @@ import re
 
 #Loading all users interaction data
 pd.set_option('display.max_columns', None)
-full_data = pd.read_csv("full_data.csv")
-#full_data = pd.read_csv("/home/iabrilvzqz/mysite/full_data.csv")
+#full_data = pd.read_csv("full_data.csv")
+full_data = pd.read_csv("/home/iabrilvzqz/mysite/full_data.csv")
 
 #Loading all content data
-content = pd.read_csv("df_content_clean.csv")
-#content = pd.read_csv("/home/iabrilvzqz/mysite/df_content_clean.csv")
+#content = pd.read_csv("df_content_clean.csv")
+content = pd.read_csv("/home/iabrilvzqz/mysite/df_content_clean.csv")
 content.drop("Unnamed: 0", inplace = True, axis = 1)
 
 # Function to get the cosine distance between two vectors
@@ -256,8 +256,8 @@ def get_recommendations_by_interactions(id):
   cols_with_1 = [col for col in view.columns if view[col].any() == 1]
   cols_user = set(cols_with_1)
   
-  # Get last show view if there is not data in db
-  last_seen = random.sample(cols_user, 1)
+  #Get last show view if there is not data in db
+  last_seen = random.sample(cols_user, 1)[0]
 
   # Searching for last seen in db
   # Transform result to DataFrame
