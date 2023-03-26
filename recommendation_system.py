@@ -70,56 +70,58 @@ def track_format(df):
   return recs
 
 
-# Colaborative filtering function
-def colaborative_filtering(user_data, user_data_not_norm, id):
-  distance, user_id_number, user_info = [], [], np.squeeze(np.asarray(user_data.iloc[id].to_numpy()))
-  # Create cosine distances
+def collaborative_filtering(user_data, user_data_not_norm, id, div):
+  k = 3
+  if div == 0.5:
+    k = 5
+  if div == 1:
+    k = 7
+
+  target_user_info = np.squeeze(np.asarray(user_data.iloc[id].to_numpy()))
+  distances = []
+  
   for n in range(0,len(user_data)):
     if n != id:      
       user_info_2 = np.squeeze(np.asarray(user_data.iloc[n].to_numpy()))
-      # If cosine distance is bigger, objects are similar
-      distance.append(cosine_distance(user_info,user_info_2 ))
-      user_id_number.append(n)
-  
-  df = pd.DataFrame(zip(distance,user_id_number), columns = ["distance", "user_id"])
-  # Getting the most similar user id
-  sorted = df.sort_values(by = "distance",ascending = False)
-  sorted = sorted.reset_index()
-  similar = sorted.loc[0,"user_id"]
-  user = user_data.iloc[id].to_frame().T.iloc[:, :562]
-
-  # Get the names of the columns that have a 1 in the value
-  cols_with_1 = [col for col in user.columns if user[col].any() == 1]
-  cols_user = set(cols_with_1)
-  
-  # Get list of similar user
-  user_sim = user_data.iloc[similar].to_frame().T.iloc[:,:562]
-  
-  # Get the names of the columns that have a 1 in the value
-  cols_with_1 = [col for col in user_sim.columns if user_sim[col].any() == 1]
-  cols_sim = set(cols_with_1)
-  dif = cols_sim - cols_user 
-  
-  # Getting diference with similar user
-  colab_recomend = dif
-  
+      distances.append((n, cosine_distance(target_user_info, user_info_2)))
+  # Get top K most similar users
+  top_k_users = sorted(distances, key=lambda x: x[1], reverse=True)[:k]
+    
+  # Get list of items that the target user has not rated
+  user = user_data_not_norm.iloc[id].to_frame().T.iloc[:, :562]
+  cols_with_0 = [col for col in user.columns if user[col].all() == 0]
+  items_to_rate = set(cols_with_0)
+    
+  # Calculate mean rating for each item from the group of similar users
+  item_ratings = []
+  for item in items_to_rate:
+    ratings = []
+    for user_id, _ in top_k_users:
+      user_info = np.squeeze(np.asarray(user_data_not_norm.iloc[user_id].to_numpy()))
+      rating = user_info[562 + list(user.columns).index(item)]
+      if rating == 1:
+        ratings.append(1)
+    if len(ratings) > 0:
+      item_ratings.append((item, sum(ratings)/len(ratings)))
+    
+  # Sort items by mean rating and return top recommendations
+  item_ratings = sorted(item_ratings, key=lambda x: x[1], reverse=True)
+  collab_recommendations = [item for item, _ in item_ratings]
+    
   # User history
-  user_history = cols_user 
-
+  cols_with_1 = [col for col in user.columns if user[col].any() == 1]
+  user_history = set(cols_with_1)
+    
   # Get list of positive interacted content
   user = user_data_not_norm.iloc[id].to_frame().T.iloc[:,562:]
-  # Get the names of the columns that have a 1 in the value
   cols_with_1 = [col for col in user.columns if user.loc[id,col] == 1]
-  
-  # Removing capital letters and appending positive interactions
   tags_rated_pos = []
   for words in cols_with_1:
     words = re.sub( '([A-Z])', '', words)
     tags_rated_pos.append(words)
   positive_user = set(tags_rated_pos)
-
-  # Making df with the collab recomendations
-  return pd.DataFrame(colab_recomend, columns = ["Name"] ), pd.DataFrame(user_history , columns = ["Name"]),pd.DataFrame( positive_user , columns = ["Name"])
+    
+  return pd.DataFrame(collab_recommendations, columns=["Name"]), pd.DataFrame(user_history, columns=["Name"]), pd.DataFrame(positive_user, columns=["Name"] ), pd.DataFrame(user_history , columns = ["Name"]),pd.DataFrame( positive_user , columns = ["Name"])
 
 
 # Content based recommendations
@@ -150,6 +152,9 @@ def content_based_filter(colab_recomend_df, user_history_df, positive_df):
 
 
 def get_personalised_recommendations(id):
+  # Get level of diversity
+  div = find_diversity_level({"user_id": id})
+
   # Finding interactions by user id
   interactions = list(find_all_interactions_history({"user_id": id}))
 
@@ -208,14 +213,14 @@ def get_personalised_recommendations(id):
   user_data = pd.concat([view, rating_norm, shared_norm, prev_norm], axis = 1)
   
   # Collaborative filtering part
-  colab_recomend_df, user_history_df, positive_df = colaborative_filtering(user_data, user_data_not_norm, id)[0], colaborative_filtering(user_data, user_data_not_norm, id)[1], colaborative_filtering(user_data, user_data_not_norm, id)[2]
+  colab_results = collaborative_filtering(user_data, user_data_not_norm, id, div)
+  colab_recomend_df, user_history_df, positive_df = colab_results[0], colab_results[1], colab_results[2]
 
   # Content based filtering part
   content_recomend_df = content_based_filter(colab_recomend_df, user_history_df, positive_df)
   
   # Giving recommendations the correct format
   normal_recomendations = track_format(content_recomend_df)
-  div = find_diversity_level({"user_id": id})
 
   # Low diversity: List is not modified
   if div == 0:
