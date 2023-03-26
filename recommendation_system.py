@@ -12,12 +12,12 @@ import re
 
 #Loading all users interaction data
 pd.set_option('display.max_columns', None)
-#full_data = pd.read_csv("full_data.csv")
-full_data = pd.read_csv("/home/iabrilvzqz/mysite/full_data.csv")
+full_data = pd.read_csv("full_data.csv")
+#full_data = pd.read_csv("/home/iabrilvzqz/mysite/full_data.csv")
 
 #Loading all content data
-#content = pd.read_csv("df_content_clean.csv")
-content = pd.read_csv("/home/iabrilvzqz/mysite/df_content_clean.csv")
+content = pd.read_csv("df_content_clean.csv")
+#content = pd.read_csv("/home/iabrilvzqz/mysite/df_content_clean.csv")
 content.drop("Unnamed: 0", inplace = True, axis = 1)
 
 # Function to get the cosine distance between two vectors
@@ -336,6 +336,83 @@ def get_top_ten_recommendation():
   normal_recommendations = track_format(grouped_df.head(10))
 
   return normal_recommendations
+
+
+def get_recommendations_by_last_reviewed(id):
+  # Finding interactions by user id
+  interactions = interactions = list(find_all_interactions_history({"user_id": id}))
+  # Preparing DataFrame
+  df = pd.pivot_table(full_data, index="user_id", columns = "Name")
+  df = df.fillna(0)
+  
+  # View dataset
+  review = df["rating"].reset_index(drop = True)
+  
+  #Get lists of shows reviewed positive
+  cols_with_1 = [col for col in review.columns if review.loc[id,col] == 1]
+  cols_user = set(cols_with_1)
+  
+  # Get last show viewed if there is not data in db
+  last_rev = random.sample(cols_user, 1)[0]
+  
+  # Searching for last seen in db
+  if interactions:
+    interactions = pd.DataFrame(interactions).drop("_id", axis=1) 
+    interactions = interactions.merge(content, left_on='title', right_on='Name')
+    
+    last = interactions.loc[interactions["type"] == "review"].sort_values(by="time",ascending=False)
+    
+    if len(last)>0:
+      last.reset_index(inplace =True, drop=True)
+      last_rev = last.loc[0,"title"] # Variable with element name
+
+  
+  # Frequently review together recommendations
+  # Check columns with last element rated
+  review_filter = review.loc[review[last_rev] == 1]
+  
+  # Get positive rated items
+  items_rated = []
+  for col in review_filter:
+    for n in review_filter[col]:
+      if n == 1:
+        items_rated.append(col)
+  
+  # Count elements
+  dic = dict(Counter(items_rated))
+  top_tags = pd.DataFrame(dic.items()).sort_values(by=1, ascending = False).reset_index(drop=True)
+  # Removing the first element (same item)
+  top_tags = top_tags.iloc[1:]
+  
+  # Getting show info
+  top_tags = top_tags.merge(content, left_on=0, right_on='Name')
+  
+  # Formating to track
+  review_recomendations = track_format(top_tags )
+
+  # Diversity implementation
+  # Getting slider value
+  div = div = find_diversity_level({"user_id": id}) #call function to get div from id
+  
+  # Low diversity: List is not modified
+  if div == 0:
+    review_recomendations = review_recomendations[:15]
+  
+  # Medium diversity: Mix order
+  if div == .5:
+    #Half random, Half not modified
+    not_random = [1,2,3,4,5,6,7]
+    yes_random = random.sample(range(8,len(review_recomendations)), 8)
+    list_ran = not_random + yes_random
+    shuffle(list_ran)
+    review_recomendations = list(np.array(review_recomendations)[list_ran])
+
+  # High diversity: random order
+  if div == 1:
+    review_recomendations = list(np.array(review_recomendations)[random.sample(range(len(review_recomendations)), 15)])
+  
+
+  return {"recommendations": review_recomendations, "item": last_rev}
 
 
 def main_track_format(df):
