@@ -1,4 +1,4 @@
-# Personalisation of (Public) Media
+# Personalisation for (Public) Media
 This is the back end part for the Personalisation of Public Media Final Project.
 
 ## Getting Started
