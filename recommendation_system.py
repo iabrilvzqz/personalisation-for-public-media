@@ -247,7 +247,8 @@ def get_personalised_recommendations(id):
   elif diversity_level == 0.5:
     #Half random, Half not modified
     not_random = [1,2,3,4,5,6,7]
-    yes_random = random.sample(range(8,len(normal_recomendations)), 8)
+    yes_random = random.sample(range(8, len(normal_recomendations)), 8 if len(normal_recomendations) > 15 else len(normal_recomendations) - 8)
+    
     list_ran = not_random + yes_random
     random.shuffle(list_ran)
     normal_recomendations = list(np.array(normal_recomendations)[list_ran])
@@ -358,7 +359,7 @@ def get_top_ten_recommendation():
 
 
 def get_recommendations_by_last_reviewed(id):
-  last_rev, review_filter=  get_last_item_by_interaction(id, "rating", "review")
+  last_rev, review_filter = get_last_item_by_interaction(id, "rating", "review")
     
   # Get positive rated items
   items_rated = []
@@ -379,11 +380,12 @@ def get_recommendations_by_last_reviewed(id):
   
   # Formatting to track
   review_recommendations = track_format(top_tags)
-
+  print("*****", len(review_recommendations))
   # Diversity implementation
   # Getting slider value
   diversity_level = find_diversity_level({"user_id": id}) # call function to get div from id
-  
+  print("*****", len(review_recommendations))
+
   # Low diversity: List is not modified
   if diversity_level == 0:
     review_recommendations = review_recommendations[:15]
@@ -392,7 +394,7 @@ def get_recommendations_by_last_reviewed(id):
   elif diversity_level == 0.5:
     # Half random, Half not modified
     not_random = [1, 2, 3, 4, 5, 6, 7]
-    yes_random = random.sample(range(8, len(review_recommendations)), 8)
+    yes_random = random.sample(range(8, len(review_recommendations)), 8 if len(review_recommendations) > 15 else len(review_recommendations) - 8)
     list_ran = not_random + yes_random
     random.shuffle(list_ran)
     review_recommendations = list(np.array(review_recommendations)[list_ran])
