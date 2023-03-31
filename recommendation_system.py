@@ -1,31 +1,31 @@
 #import libraries
 from mongo import find_diversity_level, find_all_interactions_history
-
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_distances
+from sklearn.metrics.pairwise import cosine_similarity
+from collections import Counter
 import pandas as pd
 import numpy as np
-from numpy import dot
-from collections import Counter
-
-from random import shuffle
 import random
+import nltk
 import re
 
-#Loading all users interaction data
-pd.set_option('display.max_columns', None)
+from nltk.corpus import stopwords
+from nltk.stem.snowball import DutchStemmer
+
+# Loading all users interaction data
 full_data = pd.read_csv("full_data.csv")
 #full_data = pd.read_csv("/home/iabrilvzqz/mysite/full_data.csv")
 
-#Loading all content data
-content = pd.read_csv("df_content_clean.csv")
+# Loading all content data
+content = pd.read_csv("content_clean_new.csv")
 #content = pd.read_csv("/home/iabrilvzqz/mysite/df_content_clean.csv")
-content.drop("Unnamed: 0", inplace = True, axis = 1)
 
-# Function to get the cosine distance between two vectors
-def cosine_distance(vectora, vectorb):
-  up = dot(vectora, vectorb, out=None)
-  down = len(vectora) * len(vectorb)
-  return up/down
+# The descriptions of our dataset are in Dutch, so we need to use the stopwords in Dutch
+nltk.download("stopwords")
+dutch_stopwords = set(stopwords.words('dutch'))
 
+K_VALUES = {0: 3, 0.5: 5, 1: 7}
 
 # Normalize a dataframe by subtracting the mean value
 def norm(dfx):
@@ -45,122 +45,125 @@ def rename(dfx, string):
   return dfx
 
 
-#Tag list counter function
-def tag_counter(tags_list, df_series):
-  for tags in df_series:
-    tags = tags.replace("[", "")
-    tags = tags.replace("]", "")
-    tags = tags.replace("'", "")
-    tags = tags.replace(" ", "")
-    tags = tags.split(",")
-    for t in tags:
-      tags_list.append(t)
-  return tags_list
+# Tag list counter function
+def tag_counter(df_series): 
+  return df_series.value_counts().sort_values(ascending=False)
+
+
+# Get set from series tags
+def get_tag_sets(series):
+  return series.str.replace("[\]\']", "", regex=True).str.replace(" ", "").str.split(",").apply(lambda x: set(x) if isinstance(x, list) else x)
+
+
+# Get jaccard similarity
+def get_jaccard_similarity(df, last_seen):
+  df = df.copy()
+  df["sets"] = get_tag_sets(df["Tags"])
+  
+  # Tags to compare
+  tags = df.loc[df["item_id"]== last_seen, "sets"].iloc[0]
+  df["jaccard_similarity"] = df["sets"].apply(lambda x: len(x.intersection(tags))/ len(x.union(tags)))
+  
+  return df
+
+
+def get_cosine_similarity(df, last_seen):
+  # Descriptions to compare
+  df = df.copy()
+
+  stemmer = DutchStemmer()
+  df['processed_description'] = df['Description'].apply(lambda x: ' '.join([stemmer.stem(word) for word in x.lower().split() if word not in dutch_stopwords]))
+
+  # Calculate cosine similarity
+  vectorizer = TfidfVectorizer()
+  tfidf_matrix = vectorizer.fit_transform(df['processed_description'])
+
+  selected_row_index = df[df['item_id'] == last_seen].index[0]
+
+  df['cosine_similarity'] = cosine_similarity(tfidf_matrix[selected_row_index], tfidf_matrix).flatten()
+  
+  return df
 
 
 def track_format(df):
-  recs = []
-  for _, row in df.iterrows():
-    dic = {"image": row["img_link"],
+  recs = [{
+      "image": row["Small_Image"],
+      "large_image": row["Large_Image"],
+      "item_id": row["item_id"],
       "title": row["Name"],
       "description":  row["Description"],
-      "tags": row["Genres"],
-      "category": row["Type"]}
-    recs.append(dic)
+      "tags": row["Tags"],
+      "category": row["Type"]} for _, row in df.iterrows()]
   return recs
 
 
-def collaborative_filtering(user_data, user_data_not_norm, id, div):
-  k = 3
-  if div == 0.5:
-    k = 5
-  if div == 1:
-    k = 7
+def collaborative_filtering(user_data, user_data_not_norm, user_id, diversity_level):
+  k = K_VALUES.get(diversity_level, 3)
 
-  target_user_info = np.squeeze(np.asarray(user_data.iloc[id].to_numpy()))
-  distances = []
-  
-  for n in range(0,len(user_data)):
-    if n != id:      
-      user_info_2 = np.squeeze(np.asarray(user_data.iloc[n].to_numpy()))
-      distances.append((n, cosine_distance(target_user_info, user_info_2)))
-  # Get top K most similar users
-  top_k_users = sorted(distances, key=lambda x: x[1], reverse=True)[:k]
+  target_user_info = user_data.iloc[user_id].values
+  distances = cosine_similarity(user_data, [target_user_info]).flatten()
+  distances_with_indices = list(enumerate(distances))
+  distances_with_indices.sort(key=lambda x: x[1], reverse=False)
+  top_k_indices = [i for i, _ in distances_with_indices[1:k+1]]
+
+  # Get list of items that the target user has not viewed
+  target_user_row = user_data_not_norm.iloc[user_id, :1493]
+  items_to_rate = target_user_row[target_user_row == 0].index
     
-  # Get list of items that the target user has not rated
-  user = user_data_not_norm.iloc[id].to_frame().T.iloc[:, :562]
-  cols_with_0 = [col for col in user.columns if user[col].all() == 0]
-  items_to_rate = set(cols_with_0)
-    
-  # Calculate mean rating for each item from the group of similar users
+  # Calculate mean interaction score for not viewed items from the group of similar users
   item_ratings = []
   for item in items_to_rate:
     ratings = []
-    for user_id, _ in top_k_users:
-      user_info = np.squeeze(np.asarray(user_data_not_norm.iloc[user_id].to_numpy()))
-      rating = user_info[562 + list(user.columns).index(item)]
-      if rating == 1:
-        ratings.append(1)
-    if len(ratings) > 0:
-      item_ratings.append((item, sum(ratings)/len(ratings)))
+    for user_id in top_k_indices:
+      user_row = user_data_not_norm.iloc[user_id]
+      rating1 = user_row[str(item) + "_like"]
+      rating2 = user_row[str(item) + "_shared"]
+      rating3 = user_row[str(item) + "_preview"]
+      ratings.extend([rating1, rating2, rating3])
+    
+    ratings = [r for r in ratings if r > 0]
+    if ratings:
+      mean = sum(ratings) / len(ratings)
+      item_ratings.append((item, mean))
     
   # Sort items by mean rating and return top recommendations
-  item_ratings = sorted(item_ratings, key=lambda x: x[1], reverse=True)
-  collab_recommendations = [item for item, _ in item_ratings]
-    
-  # User history
-  cols_with_1 = [col for col in user.columns if user[col].any() == 1]
-  user_history = set(cols_with_1)
-    
-  # Get list of positive interacted content
-  user = user_data_not_norm.iloc[id].to_frame().T.iloc[:,562:]
-  cols_with_1 = [col for col in user.columns if user.loc[id,col] == 1]
-  tags_rated_pos = []
-  for words in cols_with_1:
-    words = re.sub( '([A-Z])', '', words)
-    tags_rated_pos.append(words)
-  positive_user = set(tags_rated_pos)
-    
-  return pd.DataFrame(collab_recommendations, columns=["Name"]), pd.DataFrame(user_history, columns=["Name"]), pd.DataFrame(positive_user, columns=["Name"] ), pd.DataFrame(user_history , columns = ["Name"]),pd.DataFrame( positive_user , columns = ["Name"])
+  item_ratings.sort(key=lambda x: x[1], reverse=True)
+  collab_recommendations = [item for item, _ in item_ratings[:250]]
+
+  return pd.DataFrame(collab_recommendations, columns=["item_id"])
 
 
 # Content based recommendations
-def content_based_filter(colab_recomend_df, user_history_df, positive_df):
+def content_based_filter(colab_recomend_df, user_data_not_norm, user_id):
+  # Get list of positive interacted content
+  target_user_row = user_data_not_norm.iloc[user_id]
+  cols_with_1 = target_user_row[target_user_row == 1].index
+  tags_rated_pos = [int(re.findall('\d+', str(col))[0]) for col in cols_with_1]
+  positive_df = pd.DataFrame(set(tags_rated_pos), columns=["item_id"])
+
   # Data content enrichment
-  colab_recomend_df = colab_recomend_df.merge(content, how = "inner", on = "Name")
-  user_history_df = user_history_df.merge(content, how = "inner", on = "Name")
-  user_positive_df = positive_df.merge(content, how = "inner", on = "Name")
+  colab_recomend_df = colab_recomend_df.merge(content, how = "inner", on = "item_id")
+  positive_df = positive_df.merge(content, how = "inner", on = "item_id")
 
-  # Rank by most common tag in the user history
-  tags_list= []
-  # Count and add tags in views
-  tags_list = tag_counter(tags_list, user_history_df["Genres"])
-  # Count and add tags in interactions
-  tags_list = tag_counter(tags_list, user_positive_df["Genres"])
-
-  # Counting top ocurrence tags
-  dic = dict(Counter(tags_list))
-  top_tags = pd.DataFrame(dic.items()).sort_values(by = 1, ascending = False).reset_index(drop=True)
-  ranking = []
-  
-  # Make True/False columns of tags
-  for index, row in top_tags.iterrows():
-    colab_recomend_df["contains_top{}".format(index)] = colab_recomend_df["Genres"].str.contains(row[0])
-    ranking.append("contains_top{}".format(index))
-  
-  return colab_recomend_df.sort_values(ranking, ascending = False).reset_index(drop = True)
+  # Count the number of items by type and then order the colaborative recommendation list from "the most"  favourite 
+  # content type to the least favourite content type
+  top_tags = tag_counter(positive_df["Type"])
+  cat_order = pd.CategoricalDtype(categories=top_tags.index.tolist(), ordered=True)
+  # Set "Type" column as categorical with defined order
+  colab_recomend_df['Type'] = colab_recomend_df['Type'].astype(cat_order)
+  # Sort dataframe by "Type" column
+  return colab_recomend_df.sort_values('Type')
 
 
 def get_personalised_recommendations(id):
   # Get level of diversity
-  div = find_diversity_level({"user_id": id})
+  diversity_level = find_diversity_level({"user_id": id})
 
   # Finding interactions by user id
   interactions = list(find_all_interactions_history({"user_id": id}))
 
   # Preparing DataFrame
-  df = pd.pivot_table(full_data, index = "user_id", columns = "Name")
-  df = df.fillna(0)
+  df = pd.pivot_table(full_data, index = "user_id", columns = "item_id").fillna(0)
 
   # View dataset
   view = df["view"].reset_index(drop = True)
@@ -174,31 +177,26 @@ def get_personalised_recommendations(id):
   # Transform result to DataFrame
   if interactions:
     interactions = pd.DataFrame(interactions).drop("_id", axis = 1) 
-    interactions = interactions.merge(content, left_on = 'title', right_on = 'Name')
+    interactions = interactions.merge(content, on = "item_id")
     
     for _, row in interactions.iterrows():
-      # New play
+      index = np.where(df.index == id)[0][0]
+      
       if row["type"] == "play":
-        view.loc[(view.index == id),  row["Name"]] = row["value"]
-      
-      # New rating
-      if row["type"] == "review":
-        rating.loc[(rating.index == id),  row["Name"]] = row["value"]
-      
-      # New share
-      if row["type"] == "share":
-        shared.loc[(shared.index == id),  row["Name"]] = row["value"]
-
-      # New preview
-      if row["type"] == "preview":
-        prev.loc[(prev.index == id),  row["Name"]] = row["value"]
+        view[index, df.columns.get_loc(row["item_id"])] = row["value"]
+      elif row["type"] == "review":
+        rating[index, df.columns.get_loc(row["item_id"])] = row["value"]
+      elif row["type"] == "share":
+        shared[index, df.columns.get_loc(row["item_id"])] = row["value"]
+      elif row["type"] == "preview":
+        prev[index, df.columns.get_loc(row["item_id"])] = row["value"]
 
   # Renaming ratings columns
-  rename(rating, "RATING")
+  rename(rating, "_like")
   # Renaming shared columns
-  rename(shared, "SHARED")
+  rename(shared, "_shared")
   # Renaming preview columns
-  rename(prev, "PREV")
+  rename(prev, "_preview")
 
   # Getting df with user data not normalized
   user_data_not_norm = pd.concat([view, rating, shared, prev], axis = 1)
@@ -211,107 +209,106 @@ def get_personalised_recommendations(id):
 
   # Union of all datasets
   user_data = pd.concat([view, rating_norm, shared_norm, prev_norm], axis = 1)
-  
+
   # Collaborative filtering part
-  colab_results = collaborative_filtering(user_data, user_data_not_norm, id, div)
-  colab_recomend_df, user_history_df, positive_df = colab_results[0], colab_results[1], colab_results[2]
+  colab_recomend_df = collaborative_filtering(user_data, user_data_not_norm, id, diversity_level)
 
   # Content based filtering part
-  content_recomend_df = content_based_filter(colab_recomend_df, user_history_df, positive_df)
+  content_recomend_df = content_based_filter(colab_recomend_df, user_data_not_norm, id)
   
   # Giving recommendations the correct format
   normal_recomendations = track_format(content_recomend_df)
 
   # Low diversity: List is not modified
-  if div == 0:
+  if diversity_level == 0:
     normal_recomendations = normal_recomendations[:15]
   
   # Medium diversity: Mix between random and ordered list
-  elif div == 0.5:
+  elif diversity_level == 0.5:
     #Half random, Half not modified
     not_random = [1,2,3,4,5,6,7]
     yes_random = random.sample(range(8,len(normal_recomendations)), 8)
     list_ran = not_random + yes_random
-    shuffle(list_ran)
+    random.shuffle(list_ran)
     normal_recomendations = list(np.array(normal_recomendations)[list_ran])
   
   # High diversity: Order list randomly
-  elif div == 1:
+  elif diversity_level == 1:
     normal_recomendations = list(np.array(normal_recomendations)[random.sample(range(len(normal_recomendations)), 15)])
 
   return normal_recomendations
 
 
-def get_serindipity_recommendation(id):
+def get_serendipity_recommendation(id):
   return get_personalised_recommendations(id)[-1]
 
 
-def get_recommendations_by_interactions(id):
+def get_last_item_by_interaction(id, interaction_type, filter_type):
   # Finding interactions by user id
   interactions = list(find_all_interactions_history({"user_id": id}))
-
+  
   # Preparing DataFrame
-  df = pd.pivot_table(full_data, index = "user_id", columns = "Name")
+  df = pd.pivot_table(full_data, index="user_id", columns="item_id")
   df = df.fillna(0)
-
+  
   # View dataset
-  view = df["view"].reset_index(drop = True)
-
-  # Get lists of shows viewed
-  cols_with_1 = [col for col in view.columns if view[col].any() == 1]
+  review = df[interaction_type].reset_index(drop=True)
+  
+  # Get lists of shows reviewed positive
+  cols_with_1 = [col for col in review.columns if review.loc[id, col] == 1]
   cols_user = set(cols_with_1)
   
-  #Get last show view if there is not data in db
-  last_seen = random.sample(cols_user, 1)[0]
-
-  # Searching for last seen in db
-  # Transform result to DataFrame
+  # Get last show viewed if there is not data in db
+  last_rev = random.sample(cols_user, 1)[0]
   
+  # Searching for last seen in db
   if interactions:
-    interactions = pd.DataFrame(interactions).drop("_id", axis = 1) 
-    interactions = interactions.merge(content, left_on = 'title', right_on = 'Name')
-    last = interactions.loc[interactions["type"] == "play"].sort_values(by = "time", ascending = False)
+    interactions = pd.DataFrame(interactions).drop("_id", axis=1) 
+    interactions = interactions.merge(content, left_on='title', right_on='item_id')
+    
+    last = interactions.loc[interactions["type"] == filter_type].sort_values(by="time",ascending=False)
     
     if len(last) > 0:
-      last.reset_index(inplace =True, drop=True)
-      last_seen = last.loc[0,"title"] # Variable with element name
-
-  # Start content similarity based recom
-  last_df = pd.DataFrame(data={'Name': [last_seen]}).merge(content, how = "inner", on = "Name")
+      last.reset_index(inplace=True, drop=True)
+      last_rev = last.loc[0,"title"] # Variable with element name
   
-  # Rank by most common tag in the user history
-  tags_list= []
-  # Count and add tags in views
-  tags_list = tag_counter(tags_list,last_df["Genres"])
-  dic = dict(Counter(tags_list))
-  top_tags = pd.DataFrame(dic.items()).sort_values(by=1, ascending = False).reset_index(drop=True)
-  con = content.copy()
-  ranking = []
+  # Frequently review together recommendations
+  # Check columns with last element rated
+  review_filter = review.loc[review[last_rev] == 1]
 
-  for index, row in top_tags.iterrows():
-    # Make True/False columns of all tags to rank them
-    con["contains_top{}".format(index)] = con["Genres"].str.contains(row[0])
-    ranking.append("contains_top{}".format(index))
-  
-  sel = con.sort_values(ranking, ascending = False).reset_index(drop=True)
-  
-  # Removing same item
-  sel = sel.loc[sel["Name"]!= last_seen]
-  view_recomendations = track_format(sel)
+  return last_rev, review_filter
 
-  div = find_diversity_level({"user_id": id})
+
+
+def get_recommendations_by_interactions(id):
+  last_seen, _= get_last_item_by_interaction(id, "view", "play")
+  
+  # Get jaccard distance between tags
+  content_dis = get_jaccard_similarity(content,last_seen)
+  
+  # Get levshtein distance between descriptions, sorting
+  content_lev = get_cosine_similarity(content_dis, last_seen).sort_values(by=["jaccard_similarity", "cosine_similarity"], ascending = [False, False])
+ 
+  # Removing same item 
+  content_lev = content_lev.loc[content_lev["item_id"] != last_seen]
+  
+  # Getting recommendations in format
+  view_recomendations = track_format(content_lev)[:200]
+
+  # Importing diversity
+  diversity_level = find_diversity_level({"user_id": id})
 
   # Low diversity: List is not modified
-  if div == 0:
+  if diversity_level == 0:
     view_recomendations = view_recomendations[:15]
   
   # Medium diversity: Mix between random and ordered list
-  elif div == 0.5:
-    view_recomendations = view_recomendations[35:50]
+  elif diversity_level == 0.5:
+    view_recomendations = view_recomendations[85:100]
   
   # High diversity: Order list randomly
-  elif div == 1:
-    view_recomendations = view_recomendations[100:115]
+  elif diversity_level == 1:
+    view_recomendations = view_recomendations[180:195]
 
   return {"recommendations": view_recomendations, "item": last_seen}
 
@@ -321,61 +318,28 @@ def get_top_ten_recommendation():
   df = full_data.copy()
 
   # Order content by number of views and rating
-  grouped_df = df.groupby('Name').agg({'view': ['sum'], 'rating': ['mean']})
+  grouped_df = df.groupby('item_id').agg({'view': ['sum'], 'rating': ['mean']})
   C = grouped_df[('rating', 'mean')].mean()
   m = grouped_df[('view', 'sum')].quantile(0.70)
 
-  weights = []
+  R = grouped_df[('rating', 'mean')].values
+  v = grouped_df[('view', 'sum')].values
+  weights = (R + C) / (v + m)
 
-  for _, row in grouped_df.iterrows():
-    R = row[('rating', 'mean')]
-    v = row[('view', 'sum')]
-    weights.append( (R + C) / (v + m) )
-    
   grouped_df["weight"] = weights
 
   grouped_df = grouped_df.sort_values("weight", ascending=False)
 
   # Get content information to return recommendations to front
-  grouped_df = grouped_df.merge(content, how = "inner", on = "Name")
+  grouped_df = grouped_df.merge(content, how = "inner", on = "item_id")
   normal_recommendations = track_format(grouped_df.head(10))
 
   return normal_recommendations
 
 
 def get_recommendations_by_last_reviewed(id):
-  # Finding interactions by user id
-  interactions = interactions = list(find_all_interactions_history({"user_id": id}))
-  # Preparing DataFrame
-  df = pd.pivot_table(full_data, index="user_id", columns = "Name")
-  df = df.fillna(0)
-  
-  # View dataset
-  review = df["rating"].reset_index(drop = True)
-  
-  #Get lists of shows reviewed positive
-  cols_with_1 = [col for col in review.columns if review.loc[id,col] == 1]
-  cols_user = set(cols_with_1)
-  
-  # Get last show viewed if there is not data in db
-  last_rev = random.sample(cols_user, 1)[0]
-  
-  # Searching for last seen in db
-  if interactions:
-    interactions = pd.DataFrame(interactions).drop("_id", axis=1) 
-    interactions = interactions.merge(content, left_on='title', right_on='Name')
+  last_rev, review_filter=  get_last_item_by_interaction(id, "rating", "review")
     
-    last = interactions.loc[interactions["type"] == "review"].sort_values(by="time",ascending=False)
-    
-    if len(last)>0:
-      last.reset_index(inplace =True, drop=True)
-      last_rev = last.loc[0,"title"] # Variable with element name
-
-  
-  # Frequently review together recommendations
-  # Check columns with last element rated
-  review_filter = review.loc[review[last_rev] == 1]
-  
   # Get positive rated items
   items_rated = []
   for col in review_filter:
@@ -385,61 +349,41 @@ def get_recommendations_by_last_reviewed(id):
   
   # Count elements
   dic = dict(Counter(items_rated))
-  top_tags = pd.DataFrame(dic.items()).sort_values(by=1, ascending = False).reset_index(drop=True)
+  top_tags = pd.DataFrame(dic.items()).sort_values(by=1, ascending=False).reset_index(drop=True)
+  
   # Removing the first element (same item)
   top_tags = top_tags.iloc[1:]
   
   # Getting show info
-  top_tags = top_tags.merge(content, left_on=0, right_on='Name')
+  top_tags = top_tags.merge(content, left_on=0, right_on='item_id')
   
-  # Formating to track
-  review_recomendations = track_format(top_tags )
+  # Formatting to track
+  review_recommendations = track_format(top_tags)
 
   # Diversity implementation
   # Getting slider value
-  div = div = find_diversity_level({"user_id": id}) #call function to get div from id
+  diversity_level = find_diversity_level({"user_id": id}) # call function to get div from id
   
   # Low diversity: List is not modified
-  if div == 0:
-    review_recomendations = review_recomendations[:15]
+  if diversity_level == 0:
+    review_recommendations = review_recommendations[:15]
   
   # Medium diversity: Mix order
-  if div == .5:
-    #Half random, Half not modified
-    not_random = [1,2,3,4,5,6,7]
-    yes_random = random.sample(range(8,len(review_recomendations)), 8)
+  elif diversity_level == 0.5:
+    # Half random, Half not modified
+    not_random = [1, 2, 3, 4, 5, 6, 7]
+    yes_random = random.sample(range(8, len(review_recommendations)), 8)
     list_ran = not_random + yes_random
-    shuffle(list_ran)
-    review_recomendations = list(np.array(review_recomendations)[list_ran])
-
-  # High diversity: random order
-  if div == 1:
-    review_recomendations = list(np.array(review_recomendations)[random.sample(range(len(review_recomendations)), 15)])
+    random.shuffle(list_ran)
+    review_recommendations = list(np.array(review_recommendations)[list_ran])
   
+  # High diversity: random order
+  elif diversity_level == 1:
+    review_recommendations = list(np.array(review_recommendations)[random.sample(range(len(review_recommendations)), 15)])
+  
+  return {"recommendations": review_recommendations, "item": last_rev}
 
-  return {"recommendations": review_recomendations, "item": last_rev}
-
-
-def main_track_format(df):
-  recs = []
-  for _, row in df.iterrows():
-    dic = {"image": row["img_link"],
-      "title": row["Name"],
-      "description":  row["Description"],
-      "tags": row["Genres"],
-      "category": row["Type"],
-      "large_image": row["large_image"]}
-    recs.append(dic)
-  return recs
 
 def main_recommendations_by_npo():
-  names = ["downton abbey", "sanditon", "bloedbroeders", "project rembrandt", "gevoel voor tumor"]
-  images = ["downton_abbey.jpeg", "sanditon.jpeg", "bloedbroeders.jpeg", "project_rembrandt.png", "gevoel_voor_tumor.png"]
-
-  df = pd.DataFrame(list(zip(names, images)), columns=["Name", "large_image"])
-  df = df.merge(content, how = "inner", on = "Name")
-
-  normal_recommendations = main_track_format(df.sample())
-
+  normal_recommendations = track_format(content.sample())
   return normal_recommendations
-
