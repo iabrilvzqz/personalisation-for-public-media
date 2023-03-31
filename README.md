@@ -30,16 +30,16 @@ This algorithm provides personalized recommendations to users based on their int
 
 The final results are retrieved depending on the diversity level chosen by the user.
 
-## 2. Serendipity
+### 2. Serendipity
 This algorithm provides one item that is diverse and relevant to the user. It uses the personalised recommendations function to retrieve the most recommended item based on user interaction history, and then checks if it is diverse enough by comparing the item's content type to the user's preferred content types. If the item is not diverse enough, it looks for the second most recommended item and repeats the process until it finds an item that is both diverse and relevant. The function returns the diverse and relevant item.
 
-## 3. Top-ten content from all the platform
+### 3. Top-ten content from all the platform
 This code implements a recommendation engine that returns the top ten recommended items to any user by using a weighted average. It prepares a DataFrame of all the content on the platform and orders it by the number of views and rating. The function calculates a weight for each item based on the average rating and the number of views. The resulting DataFrame is sorted by weight, and the top ten items are returned.
 
-## 4. Recommendations based on viewed content by the user
+### 4. Recommendations based on viewed content by the user
 This code generates personalized recommendations for a user based on their past interactions with the platform. The function calculates the similarity between the tags of the last item the user interacted with and the tags of all other items in the dataset using the Jaccard similarity metric. It also calculates the cosine similarity between the descriptions of the last item the user interacted with and the descriptions of all other items in the dataset.
 
 The resulting list of recommendations is modified based on the user's diversity level. If the user has low diversity, the top 15 items from the sorted list are returned. If the user has medium diversity, a mix of random and ordered items from the list are returned. Finally, if the user has high diversity, a randomly ordered list of items from the bottom of the sorted list are returned.
 
-## 5. Frequently liked together items
+### 5. Frequently liked together items
 This code generates recommendations based on the last item that the user liked. The function searches for other users who liked the same item and then looks for the other items that those users also liked. The function returns a list of the top recommended items based on how frequently they are liked together.
