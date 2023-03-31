@@ -266,7 +266,7 @@ def get_recommendations_by_interactions(id):
   # Get jaccard distance between tags
   content_dis = get_jaccard_similarity(content,last_seen)
   
-  # Get levshtein distance between descriptions, sorting
+  # Get cosine distance between descriptions
   content_lev = get_cosine_similarity(content_dis, last_seen).sort_values(by=["jaccard_similarity", "cosine_similarity"], ascending = [False, False])
  
   # Removing same item 
