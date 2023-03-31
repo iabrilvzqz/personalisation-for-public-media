@@ -50,8 +50,39 @@ def rename(dfx, string):
 
 
 # Tag list counter function
-def tag_counter(df_series): 
-  return df_series.value_counts().sort_values(ascending=False)
+def type_counter(df_series, colab_recomend_df): 
+  # Count the number of items by type and then order the colaborative recommendation list from "the most"  favourite 
+  # content type to the least favourite content type
+  top_tags = df_series.value_counts().sort_values(ascending=False)
+  cat_order = pd.CategoricalDtype(categories=top_tags.index.tolist(), ordered=True)
+  # Set "Type" column as categorical with defined order
+  colab_recomend_df['Type'] = colab_recomend_df['Type'].astype(cat_order)
+  # Sort dataframe by "Type" column
+  return colab_recomend_df.sort_values('Type')
+
+
+# Tag list counter function
+def tag_counter(df_series, colab_recomend_df):
+  colab_recomend_df = colab_recomend_df.copy()
+  # Create a list of all tags in the dataframe
+  tags = []
+  for _, row in df_series.iteritems():
+    tags.extend(eval(row))
+
+  # Count the frequency of each tag
+  tag_counts = pd.Series(tags).value_counts()
+  tag_list = tag_counts.index.to_list()
+  
+  # create a weight variable that decreases as you move down the tag list
+  tag_weight = {tag_list[i]: len(tag_list) - i for i in range(len(tag_list))}
+
+  # count the number of common tags in each row and weight them
+  colab_recomend_df['Tags'] = colab_recomend_df['Tags'].apply(lambda x: eval(x))
+  colab_recomend_df['common_tags_weighted'] = colab_recomend_df['Tags'].apply(lambda x: sum([tag_weight[tag] for tag in x if tag in tag_list])/len(x))
+
+  # sort the dataframe by the weighted number of common tags in descending order
+  colab_recomend_df = colab_recomend_df.sort_values('common_tags_weighted', ascending=False)
+  return colab_recomend_df
 
 
 # Get set from series tags
@@ -156,15 +187,12 @@ def content_based_filter(colab_recomend_df, user_data_not_norm, user_id):
   # Data content enrichment
   colab_recomend_df = colab_recomend_df.merge(content, how = "inner", on = "item_id")
   positive_df = positive_df.merge(content, how = "inner", on = "item_id")
+  
+  colab_recomend_df = type_counter(positive_df["Type"], colab_recomend_df)
+  
+  colab_recomend_df = tag_counter(positive_df["Tags"], colab_recomend_df)
 
-  # Count the number of items by type and then order the colaborative recommendation list from "the most"  favourite 
-  # content type to the least favourite content type
-  top_tags = tag_counter(positive_df["Type"])
-  cat_order = pd.CategoricalDtype(categories=top_tags.index.tolist(), ordered=True)
-  # Set "Type" column as categorical with defined order
-  colab_recomend_df['Type'] = colab_recomend_df['Type'].astype(cat_order)
-  # Sort dataframe by "Type" column
-  return colab_recomend_df.sort_values('Type')
+  return colab_recomend_df.sort_values(["Type", "common_tags_weighted"], ascending=[True, False])
 
 
 def get_personalised_recommendations(id):
@@ -227,7 +255,7 @@ def get_personalised_recommendations(id):
   # High diversity: Order list randomly
   elif diversity_level == 1:
     normal_recomendations = list(np.array(normal_recomendations)[random.sample(range(len(normal_recomendations)), 15)])
-
+  
   return normal_recomendations
 
 
