@@ -72,11 +72,11 @@ def get_jaccard_similarity(df, last_seen):
 
 
 def clean_text(text):
-    # Convert to lowercase
-    text = text.lower()
-    # Remove punctuation
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    return text
+  # Convert to lowercase
+  text = text.lower()
+  # Remove punctuation
+  text = text.translate(str.maketrans('', '', string.punctuation))
+  return text
 
 
 def get_cosine_similarity(df, last_seen):
