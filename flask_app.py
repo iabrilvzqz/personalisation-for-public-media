@@ -1,12 +1,10 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import os
 
 from mongo import new_interaction, find_interaction, find_interactions_history, save_diversity_level, find_diversity_level
 from recommendation_system import main_recommendations_by_npo, get_recommendations_by_interactions, get_personalised_recommendations, get_serendipity_recommendation, get_top_ten_recommendation, get_recommendations_by_last_reviewed
 
 app = Flask(__name__)
-cors = CORS(app)
 
 @app.route('/')
 def serve_index():
