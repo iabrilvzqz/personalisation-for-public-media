@@ -16,6 +16,7 @@ def new_interaction(json_data):
     #Create new document or record inside a collection
     new_record = {
         "user_id": json_data["user_id"],
+        "item_id": json_data["item_id"],
         "title": json_data["title"],
         "type": json_data["type"],
         "value": json_data["value"],
@@ -40,7 +41,7 @@ def find_diversity_level(json_data):
     #Find filtering
     result = records.find_one({ "user_id": json_data["user_id"]})
     
-    return result["value"] if result else None
+    return result["value"] if result else 0.5
 
 
 def find_interaction(json_data):
@@ -48,7 +49,8 @@ def find_interaction(json_data):
     records = db.interactions
 
     #Find filtering
-    result = records.find_one({ "user_id": json_data["user_id"], 
+    result = records.find_one({ "user_id": json_data["user_id"],
+                                "item_id": json_data["item_id"],
                                 "title": json_data["title"], 
                                 "type": json_data["type"] }, sort=[( '_id', pymongo.DESCENDING )])
     
