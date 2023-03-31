@@ -3,7 +3,7 @@ from flask_cors import CORS
 import os
 
 from mongo import new_interaction, find_interaction, find_interactions_history, save_diversity_level, find_diversity_level
-from recommendation_system import main_recommendations_by_npo, get_recommendations_by_interactions, get_personalised_recommendations, get_serindipity_recommendation, get_top_ten_recommendation, get_recommendations_by_last_reviewed
+from recommendation_system import main_recommendations_by_npo, get_recommendations_by_interactions, get_personalised_recommendations, get_serendipity_recommendation, get_top_ten_recommendation, get_recommendations_by_last_reviewed
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -25,6 +25,12 @@ def personalised_recommendations():
   results = get_personalised_recommendations(json_data['user_id'])
   return jsonify(results)
 
+@app.route("/serendipity_recommendations", methods=["GET", "POST"])
+def serendipity_recommendations():
+  json_data = request.json
+  results = get_serendipity_recommendation(json_data['user_id'])
+  return jsonify(results)
+
 @app.route("/similar_recommendations", methods=["GET", "POST"])
 def similar_recommendations():
   json_data = request.json
@@ -40,12 +46,6 @@ def top_ten_recommendations():
 def last_reviewed_recommendations():
   json_data = request.json
   results = get_recommendations_by_last_reviewed(json_data['user_id'])
-  return jsonify(results)
-
-@app.route("/serindipity_recommendations", methods=["GET", "POST"])
-def serindipity_recommendations():
-  json_data = request.json
-  results = get_serindipity_recommendation(json_data['user_id'])
   return jsonify(results)
 
 @app.route("/npo_recommendation", methods=["GET", "POST"])
