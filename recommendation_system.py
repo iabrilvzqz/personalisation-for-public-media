@@ -171,7 +171,7 @@ def collaborative_filtering(user_data, user_data_not_norm, user_id, diversity_le
     
   # Sort items by mean rating and return top recommendations
   item_ratings.sort(key=lambda x: x[1], reverse=True)
-  collab_recommendations = [item for item, _ in item_ratings[:250]]
+  collab_recommendations = [item for item, _ in item_ratings[:150]]
 
   return pd.DataFrame(collab_recommendations, columns=["item_id"])
 
