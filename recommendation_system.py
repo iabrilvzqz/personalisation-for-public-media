@@ -1,11 +1,13 @@
 #import libraries
 from mongo import find_diversity_level, find_all_interactions_history
+from stopwords_nl import STOPWORDS
+
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import Counter
 import pandas as pd
 import numpy as np
+import string
 import random
 import nltk
 import re
@@ -23,7 +25,9 @@ content = pd.read_csv("content_clean_new.csv")
 
 # The descriptions of our dataset are in Dutch, so we need to use the stopwords in Dutch
 nltk.download("stopwords")
-dutch_stopwords = set(stopwords.words('dutch'))
+dutch_stopwords = stopwords.words('dutch')
+dutch_stopwords.extend(STOPWORDS)
+dutch_stopwords = set(dutch_stopwords)
 
 K_VALUES = {0: 3, 0.5: 5, 1: 7}
 
@@ -67,15 +71,23 @@ def get_jaccard_similarity(df, last_seen):
   return df
 
 
+def clean_text(text):
+    # Convert to lowercase
+    text = text.lower()
+    # Remove punctuation
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    return text
+
+
 def get_cosine_similarity(df, last_seen):
   # Descriptions to compare
   df = df.copy()
 
   stemmer = DutchStemmer()
-  df['processed_description'] = df['Description'].apply(lambda x: ' '.join([stemmer.stem(word) for word in x.lower().split() if word not in dutch_stopwords]))
+  df['processed_description'] = df['Description'].apply(lambda x: ' '.join([stemmer.stem(word) for word in clean_text(x).split() if word not in dutch_stopwords]))
 
   # Calculate cosine similarity
-  vectorizer = TfidfVectorizer()
+  vectorizer = TfidfVectorizer(max_df=0.4, min_df=20)
   tfidf_matrix = vectorizer.fit_transform(df['processed_description'])
 
   selected_row_index = df[df['item_id'] == last_seen].index[0]
@@ -268,7 +280,7 @@ def get_recommendations_by_interactions(id):
   
   # Get cosine distance between descriptions
   content_lev = get_cosine_similarity(content_dis, last_seen).sort_values(by=["jaccard_similarity", "cosine_similarity"], ascending = [False, False])
- 
+  
   # Removing same item 
   content_lev = content_lev.loc[content_lev["item_id"] != last_seen]
   
