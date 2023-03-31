@@ -21,7 +21,7 @@ full_data = pd.read_csv("full_data.csv")
 
 # Loading all content data
 content = pd.read_csv("content_clean_new.csv")
-#content = pd.read_csv("/home/iabrilvzqz/mysite/df_content_clean.csv")
+#content = pd.read_csv("/home/iabrilvzqz/mysite/content_clean_new.csv")
 
 # The descriptions of our dataset are in Dutch, so we need to use the stopwords in Dutch
 nltk.download("stopwords")
