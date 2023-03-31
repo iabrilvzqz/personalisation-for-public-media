@@ -380,12 +380,11 @@ def get_recommendations_by_last_reviewed(id):
   
   # Formatting to track
   review_recommendations = track_format(top_tags)
-  print("*****", len(review_recommendations))
+  
   # Diversity implementation
   # Getting slider value
   diversity_level = find_diversity_level({"user_id": id}) # call function to get div from id
-  print("*****", len(review_recommendations))
-
+  
   # Low diversity: List is not modified
   if diversity_level == 0:
     review_recommendations = review_recommendations[:15]
