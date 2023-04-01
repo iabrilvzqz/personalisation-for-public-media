@@ -171,7 +171,7 @@ def collaborative_filtering(user_data, user_data_not_norm, user_id, diversity_le
     
   # Sort items by mean rating and return top recommendations
   item_ratings.sort(key=lambda x: x[1], reverse=True)
-  collab_recommendations = [item for item, _ in item_ratings[:150]]
+  collab_recommendations = [item for item, _ in item_ratings[:]]
 
   return pd.DataFrame(collab_recommendations, columns=["item_id"])
 
@@ -246,7 +246,7 @@ def get_personalised_recommendations(id):
   # Medium diversity: Mix between random and ordered list
   elif diversity_level == 0.5:
     #Half random, Half not modified
-    not_random = [1,2,3,4,5,6,7]
+    not_random = [0,1,2,3,4,5,6]
     yes_random = random.sample(range(8, len(normal_recomendations)), 8 if len(normal_recomendations) > 15 else len(normal_recomendations) - 8)
     
     list_ran = not_random + yes_random
@@ -255,7 +255,13 @@ def get_personalised_recommendations(id):
   
   # High diversity: Order list randomly
   elif diversity_level == 1:
-    normal_recomendations = list(np.array(normal_recomendations)[random.sample(range(len(normal_recomendations)), 15)])
+    #few not modified, the  rest random
+    not_random = [0,1,2]
+    yes_random = random.sample(range(3, len(normal_recomendations)), 12 if len(normal_recomendations) > 15 else len(normal_recomendations) - 3)
+    
+    list_ran = not_random + yes_random
+    random.shuffle(list_ran)
+    normal_recomendations = list(np.array(normal_recomendations)[list_ran])
   
   return normal_recomendations
 
@@ -325,11 +331,23 @@ def get_recommendations_by_interactions(id):
   
   # Medium diversity: Mix between random and ordered list
   elif diversity_level == 0.5:
-    view_recomendations = view_recomendations[85:100]
+    #Half random, Half not modified
+    not_random = [0,1,2,3,4,5,6]
+    yes_random = random.sample(range(8, len(view_recomendations)), 8 if len(view_recomendations) > 15 else len(view_recomendations) - 8)
+    
+    list_ran = not_random + yes_random
+    random.shuffle(list_ran)
+    view_recomendations = list(np.array(view_recomendations)[list_ran])
   
   # High diversity: Order list randomly
   elif diversity_level == 1:
-    view_recomendations = view_recomendations[180:195]
+    #few not modified, the  rest random
+    not_random = [0,1,2]
+    yes_random = random.sample(range(3, len(view_recomendations)), 12 if len(view_recomendations) > 15 else len(view_recomendations) - 3)
+    
+    list_ran = not_random + yes_random
+    random.shuffle(list_ran)
+    view_recomendations = list(np.array(view_recomendations)[list_ran])
 
   return {"recommendations": view_recomendations, "item": content[content["item_id"] == last_seen]["Name"].values[0]}
 
@@ -389,18 +407,25 @@ def get_recommendations_by_last_reviewed(id):
   if diversity_level == 0:
     review_recommendations = review_recommendations[:15]
   
-  # Medium diversity: Mix order
+  # Medium diversity: Mix between random and ordered list
   elif diversity_level == 0.5:
-    # Half random, Half not modified
-    not_random = [1, 2, 3, 4, 5, 6, 7]
+    #Half random, Half not modified
+    not_random = [0,1,2,3,4,5,6]
     yes_random = random.sample(range(8, len(review_recommendations)), 8 if len(review_recommendations) > 15 else len(review_recommendations) - 8)
+    
     list_ran = not_random + yes_random
     random.shuffle(list_ran)
     review_recommendations = list(np.array(review_recommendations)[list_ran])
   
-  # High diversity: random order
+  # High diversity: Order list randomly
   elif diversity_level == 1:
-    review_recommendations = list(np.array(review_recommendations)[random.sample(range(len(review_recommendations)), 15)])
+    #few not modified, the  rest random
+    not_random = [0,1,2]
+    yes_random = random.sample(range(3, len(review_recommendations)), 12 if len(review_recommendations) > 15 else len(review_recommendations) - 3)
+    
+    list_ran = not_random + yes_random
+    random.shuffle(list_ran)
+    review_recommendations = list(np.array(review_recommendations)[list_ran])
   
   return {"recommendations": review_recommendations, "item": content[content["item_id"] == last_rev]["Name"].values[0]}
 
