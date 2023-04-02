@@ -292,8 +292,10 @@ def get_last_item_by_interaction(id, interaction_type, filter_type):
   if interactions:
     interactions = pd.DataFrame(interactions).drop("_id", axis=1)
     interactions = interactions.merge(content, left_on="item_id", right_on="item_id")
-    
-    last = interactions.loc[interactions["type"] == filter_type].sort_values(by="time", ascending=True)
+
+    interactions["time"] = pd.to_datetime(interactions["time"], format='%d/%m/%Y %H:%M:%S')
+
+    last = interactions.loc[interactions["type"] == filter_type].sort_values(by="time", ascending=False)
 
     if len(last) > 0:
       last.reset_index(inplace=True, drop=True)
