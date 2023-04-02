@@ -293,8 +293,8 @@ def get_last_item_by_interaction(id, interaction_type, filter_type):
     interactions = pd.DataFrame(interactions).drop("_id", axis=1)
     interactions = interactions.merge(content, left_on="item_id", right_on="item_id")
     
-    last = interactions.loc[interactions["type"] == filter_type].sort_values(by="time",ascending=False)
-    
+    last = interactions.loc[interactions["type"] == filter_type].sort_values(by="time", ascending=True)
+
     if len(last) > 0:
       last.reset_index(inplace=True, drop=True)
       last_rev = last.loc[0, "item_id"] # Variable with element name
